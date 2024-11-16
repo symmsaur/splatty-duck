@@ -16,7 +16,10 @@
           cudaSupport = disableCudaEnvFlag != "1";
         };
       });
-      rustToolchain = fenix.packages."${system}".stable;
+      rustToolchain = with fenix.packages."${system}"; combine [
+        (stable.withComponents [ "cargo" "rustc" "rust-src" "rustfmt" "clippy"])
+        targets."wasm32-unknown-unknown".stable.rust-std
+      ];
       helixmaster = helix-pkg.packages.${system}.default;
 
       pds3 = pkgs.python3Packages.buildPythonPackage rec {
@@ -55,14 +58,16 @@
       pythonWithPackages = pkgs.python3.withPackages (p: pythonPackages);
 
       devinputs = with pkgs; [
-      duckdb
+        duckdb
         fenix.packages."${system}".rust-analyzer
+        # rust-analyzer
         ruff
         helixmaster
         nixfmt
         pythonWithPackages
         feh
         xclip
+        rustToolchain
       ];
     in {
       devShells.x86_64-linux.default =
