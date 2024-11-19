@@ -1,7 +1,8 @@
 use std::{fs, path::Path};
 
 use anyhow::anyhow;
-use rerun::{demo_util::grid, external::glam, ImageFormat, RecordingStream, Transform3D};
+use image::GenericImageView;
+use rerun::{demo_util::grid, external::glam, ImageFormat, Loggable, RecordingStream, Transform3D};
 
 struct DataSample {
     img_path: String,
@@ -71,16 +72,48 @@ fn log_image(rec: &RecordingStream, data_sample: &DataSample) -> anyhow::Result<
     let long = long / 360.0 * 2.0 * core::f32::consts::PI;
     let lat = data_sample.get_meta_float("SUB_SPACECRAFT_LATITUDE")?;
     let lat = lat / 360.0 * 2.0 * core::f32::consts::PI;
-    // dbg!(long, lat);
-    // panic!();
-    let Rz = glam::Affine3A::from_rotation_z(lat);
-    let Ry = glam::Affine3A::from_rotation_y(long);
-    let R = Ry * Rz;
+
+    let declination = data_sample.get_meta_float("DECLINATION")?;
+    let declination = declination / 360.0 * 2.0 * core::f32::consts::PI;
+    let right_ascension = data_sample.get_meta_float("RIGHT_ASCENSION")?;
+    let right_ascension = right_ascension / 360.0 * 2.0 * core::f32::consts::PI;
+
+    let north_clock_angle = data_sample.get_meta_float("CELESTIAL_NORTH_CLOCK_ANGLE")?;
+    let north_clock_angle = -north_clock_angle / 360.0 * 2.0 * core::f32::consts::PI;
+
+    let v = glam::Vec3::new(
+        f32::cos(declination) * f32::cos(right_ascension),
+        f32::cos(declination) * f32::sin(right_ascension),
+        f32::sin(declination),
+    );
+
+    let celestial_north = glam::Vec3::new(0.0, 0.0, 1.0);
+    let perp = celestial_north.project_onto(v);
+    let celestial_north_in_cam_plane = celestial_north - perp;
+    let right_in_cam_plane = v.cross(celestial_north_in_cam_plane);
+
+    let Rz = glam::Affine3A::from_rotation_x(lat);
+    let Ry = glam::Affine3A::from_rotation_z(long);
+    let R = (Ry * Rz).inverse();
     // let t3 = rerun::Transform3D::from_mat3x3(R.inverse().matrix3.to_cols_array());
-    let transformed_ray = 0.1 * R.transform_vector3(glam::Vec3::from_array(target_vector));
-    let dir = transformed_ray.normalize();
-    let (up, left) = dir.any_orthonormal_pair();
-    let Rtovec = rerun::Transform3D::from_mat3x3(glam::mat3(left, up, dir).to_cols_array())
+    let transformed_ray = -0.1 * glam::Vec3::from_array(target_vector);
+
+    // Up and right from celestial north projection and
+    // celestial north clock angle
+    let dir = v.normalize();
+    let cel_clock_rot = glam::Mat3::from_axis_angle(dir, north_clock_angle);
+    let up = cel_clock_rot * celestial_north_in_cam_plane;
+    let right = cel_clock_rot * right_in_cam_plane;
+    // let (up, right) = dir.any_orthonormal_pair();
+
+    let right = R.matrix3 * right;
+    let up = R.matrix3 * up;
+    let dir = R.matrix3 * dir;
+    let transformed_ray = R.matrix3 * transformed_ray;
+    let v = R.matrix3 * v;
+    let celestial_north_in_cam_plane = R.matrix3 * celestial_north_in_cam_plane;
+
+    let Rtovec = rerun::Transform3D::from_mat3x3(glam::mat3(right, up, dir).to_cols_array())
         .with_translation(transformed_ray);
 
     rec.log(
@@ -97,14 +130,55 @@ fn log_image(rec: &RecordingStream, data_sample: &DataSample) -> anyhow::Result<
         ),
         &mesh,
     )?;
+    rec.log(
+        format!(
+            "images/plane/{}",
+            data_sample.meta.get("PRODUCT_ID").unwrap().to_string()
+        ),
+        &rerun::TextDocument::new(format!(
+            "{}",
+            north_clock_angle / 2.0 / core::f32::consts::PI * 360.0
+        )),
+    )?;
 
     rec.log(
         format!(
             "images/lines/{}",
             data_sample.meta.get("PRODUCT_ID").unwrap().to_string()
         ),
-        &rerun::LineStrips3D::new([[[0.0, 0.0, 0.0], transformed_ray.to_array()]]),
+        &rerun::LineStrips3D::new([[[0.0, 0.0, 0.0], transformed_ray.to_array()]])
+            .with_radii([0.025]), // .with_labels(std::iter::once("dir_to_67p")),
     )?;
+    rec.log(
+        format!(
+            "images/lines/{}",
+            data_sample.meta.get("PRODUCT_ID").unwrap().to_string() + "2"
+        ),
+        &rerun::LineStrips3D::new([[transformed_ray.to_array(), (transformed_ray + v).to_array()]]), // .with_labels(std::iter::once("boresight")),
+    )?;
+    rec.log(
+        format!(
+            "images/lines/{}",
+            data_sample.meta.get("PRODUCT_ID").unwrap().to_string() + "_north"
+        ),
+        &rerun::LineStrips3D::new([[
+            transformed_ray.to_array(),
+            (transformed_ray + celestial_north_in_cam_plane).to_array(),
+        ]])
+        .with_colors([rerun::Color::from_rgb(255, 0, 0)]), // .with_labels(std::iter::once("boresight")),
+    )?;
+    rec.log(
+        format!(
+            "images/lines/{}",
+            data_sample.meta.get("PRODUCT_ID").unwrap().to_string() + "_north_rot"
+        ),
+        &rerun::LineStrips3D::new([[
+            transformed_ray.to_array(),
+            (transformed_ray + up).to_array(),
+        ]])
+        .with_colors([rerun::Color::from_rgb(0, 255, 0)]), // .with_labels(std::iter::once("boresight")),
+    )?;
+    // panic!();
 
     Ok(())
 }
@@ -139,8 +213,12 @@ impl DataSample {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rec = rerun::RecordingStreamBuilder::new("rerun_example_minimal").spawn()?;
 
+    rec.log(
+        format!("celestial_north",),
+        &rerun::LineStrips3D::new([[[0.0, 0.0, 0.0], [0.0, 0.0, 50.0]]]), // .with_labels(std::iter::once("dir_to_67p")),
+    )?;
     let dataset = load_dataset()?;
-    for data_sample in dataset.iter().take(10) {
+    for data_sample in dataset.iter().take(300) {
         log_image(&rec, data_sample).unwrap();
     }
     // let points = grid(glam::Vec3::splat(-10.0), glam::Vec3::splat(10.0), 10);
