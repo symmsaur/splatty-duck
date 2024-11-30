@@ -1,10 +1,6 @@
-[package]
-name = "splatty-duck"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-anyhow = "1.0.93"
-image = {version="0.25.5", features=["png"]}
-rerun = "0.20.0"
-serde_json = "1.0.132"
+[workspace]
+members = [
+    "wgpuduck",
+    "reduck",
+]
+resolver = "2"

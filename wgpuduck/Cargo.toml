@@ -1,0 +1,15 @@
+[package]
+name = "wgpuduck"
+version = "1.0.0"
+edition = "2021"
+
+[[bin]]
+name = "wgpuduck"
+path = "src/wgpuduck.rs"
+
+[dependencies]
+serde_json = "1.0.132"
+wgpu = "22.*"
+winit = "0.30.5"
+pollster = "0.4.0"
+bytemuck = { version = "*", features = [ "derive" ] }
