@@ -1,0 +1,165 @@
+<!doctype html>
+
+<canvas></canvas>
+
+<script type="module">
+  // CORS fail or smth
+    // import splatWgsl from "./splat.wgsl";
+
+  const splatWgsl = `
+struct VertexInput {
+    @location(0) position: vec3f,
+    @location(1) quad_pos: vec2f,
+}
+
+struct VertexOutput {
+    @builtin(position) position : vec4f,
+}
+
+
+@vertex
+fn vs_main(in : VertexInput) -> VertexOutput {
+    var position = in.position + 0.1 * vec3f(in.quad_pos, 0.0);
+    var out : VertexOutput;
+    out.position = vec4f(position, 1.0);
+    return out;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    return vec4(1.0, 0.0, 0.0, 1.0);
+}
+`;
+    async function getDevice() {
+        const adapter = await navigator.gpu.requestAdapter();
+        const device = await adapter.requestDevice();
+        console.log(device);
+        return device;
+    }
+
+    async function main() {
+        const device = await getDevice();
+        const canvas = document.querySelector("canvas");
+        const context = canvas.getContext("webgpu");
+        const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
+        context.configure({
+            device: device,
+            format: presentationFormat,
+        });
+
+        const pipeline = device.createRenderPipeline({
+            layout: "auto",
+            vertex: {
+                module: device.createShaderModule({
+                    code: splatWgsl,
+                }),
+                buffers: [
+                    {
+                        // splats
+                        arrayStride: 3 * 4, // vec3f
+                        stepMode: "instance",
+                        attributes: [
+                            {
+                                // position
+                                shaderLocation: 0,
+                                offset: 0,
+                                format: "float32x3",
+                            },
+                        ],
+                    },
+                    {
+                        // quad
+                        arrayStride: 2 * 4, // vec2f
+                        stepMode: "vertex",
+                        attributes: [
+                            {
+                                // vertex positions
+                                shaderLocation: 1,
+                                offset: 0,
+                                format: "float32x2",
+                            },
+                        ],
+                    },
+                ],
+            },
+            fragment: {
+                module: device.createShaderModule({
+                    code: splatWgsl,
+                }),
+                targets: [
+                    {
+                        format: presentationFormat,
+                    },
+                ],
+            },
+            primitive: {
+                topology: "triangle-list",
+            },
+        });
+
+        const splatBuffer = device.createBuffer({
+            size: 3 * 3 * 4, //  3x vec3f
+            usage: GPUBufferUsage.VERTEX,
+            mappedAtCreation: true,
+        });
+        const splatData = [0.5, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
+
+        new Float32Array(splatBuffer.getMappedRange()).set(splatData);
+        splatBuffer.unmap();
+
+        const quadVertexBuffer = device.createBuffer({
+            size: 6 * 2 * 4, // 6x vec2f
+            usage: GPUBufferUsage.VERTEX,
+            mappedAtCreation: true,
+        });
+        const vertexData = [
+            -1.0,
+            -1.0,
+            +1.0,
+            -1.0,
+            -1.0,
+            +1.0,
+            -1.0,
+            +1.0,
+            +1.0,
+            -1.0,
+            +1.0,
+            +1.0,
+        ];
+
+        new Float32Array(quadVertexBuffer.getMappedRange()).set(vertexData);
+        quadVertexBuffer.unmap();
+
+        function frame() {
+            const commandEncoder = device.createCommandEncoder();
+            const textureView = context.getCurrentTexture().createView();
+
+            const renderPassDescriptor = {
+                colorAttachments: [],
+            };
+
+            const passEncoder = commandEncoder.beginRenderPass({
+                colorAttachments: [
+                    {
+                        view: textureView,
+                        clearValue: [0, 0, 0, 1.0],
+                        loadOp: "clear",
+                        storeOp: "store",
+                    },
+                ],
+            });
+            passEncoder.setPipeline(pipeline);
+            passEncoder.setVertexBuffer(0, splatBuffer);
+            passEncoder.setVertexBuffer(1, quadVertexBuffer);
+            passEncoder.draw(6, 3);
+            passEncoder.end();
+
+            device.queue.submit([commandEncoder.finish()]);
+            requestAnimationFrame(frame);
+        }
+
+        requestAnimationFrame(frame);
+    }
+
+    main();
+</script>
