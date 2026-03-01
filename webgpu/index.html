@@ -63,8 +63,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     }
 
     async function main() {
-        const plydata_f32 = await downloadPLY();
-        console.log(plydata_f32);
         const device = await getDevice();
         const canvas = document.querySelector("canvas");
         const context = canvas.getContext("webgpu");
@@ -74,7 +72,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             format: presentationFormat,
         });
 
-        const splatSize = 17 * 4;
+        const splatSize = 17;
+        const splatSizeByte = splatSize * 4;
 
         const pipeline = device.createRenderPipeline({
             layout: "auto",
@@ -85,7 +84,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                 buffers: [
                     {
                         // splats
-                        arrayStride: splatSize,
+                        arrayStride: splatSizeByte,
                         stepMode: "instance",
                         attributes: [
                             {
@@ -126,17 +125,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             },
         });
 
-        const splatBuffer = device.createBuffer({
-            size: 3 * 3 * 4, //  3x vec3f
-            usage: GPUBufferUsage.VERTEX,
-            mappedAtCreation: true,
-        });
 
         // TODO: Get from ply
-        const splatData = [0.7, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
+        // const splatData = [0.7, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
+        const splatData = await downloadPLY();
 
         // Assumes splatData is in bytes
         const numSplats = splatData.length / splatSize;
+
+        const splatBuffer = device.createBuffer({
+            size: splatSizeByte * numSplats, 
+            usage: GPUBufferUsage.VERTEX,
+            mappedAtCreation: true,
+        });
 
         new Float32Array(splatBuffer.getMappedRange()).set(splatData);
         splatBuffer.unmap();
