@@ -9,11 +9,14 @@
   const splatWgsl = `
 struct VertexInput {
     @location(0) position: vec3f,
-    @location(1) quad_pos: vec2f,
+    @location(1) color: vec3f,
+    @location(2) opacity: f32,
+    @location(3) quad_pos: vec2f,
 }
 
 struct VertexOutput {
     @builtin(position) position : vec4f,
+    @location(0) color : vec4f,
 }
 
 
@@ -22,12 +25,13 @@ fn vs_main(in : VertexInput) -> VertexOutput {
     var position = in.position + 0.01 * vec3f(in.quad_pos, 0.0);
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
+    out.color = vec4f(in.color, in.opacity);
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    return vec4(1.0, 0.0, 0.0, 1.0);
+    return in.color;
 }
 `;
     async function getDevice() {
@@ -93,6 +97,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                                 offset: 0,
                                 format: "float32x3",
                             },
+                            {
+                                // color
+                                shaderLocation: 1,
+                                offset: 6 * 4,
+                                format: "float32x3",
+                            },
+                            {
+                                // opacity
+                                shaderLocation: 2,
+                                offset: 9 * 4,
+                                format: "float32",
+                            },
                         ],
                     },
                     {
@@ -102,7 +118,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                         attributes: [
                             {
                                 // vertex positions
-                                shaderLocation: 1,
+                                shaderLocation: 3,
                                 offset: 0,
                                 format: "float32x2",
                             },
