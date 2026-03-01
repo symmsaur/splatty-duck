@@ -22,10 +22,10 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
-    var position = in.position + 0.01 * vec3f(in.quad_pos, 0.0);
+    var position = in.position + 0.02 * vec3f(in.quad_pos, 0.0);
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
-    out.color = vec4f(in.color, in.opacity);
+    out.color = vec4f(in.color, 0.3 * in.opacity);
     return out;
 }
 
@@ -73,7 +73,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
         const presentationFormat = navigator.gpu.getPreferredCanvasFormat();
         context.configure({
             device: device,
-            format: presentationFormat,
+            format: "rgba8unorm",
+            tonemapping: {
+                mode: "standard",
+            }
         });
 
         const splatSize = 17;
@@ -132,7 +135,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                 }),
                 targets: [
                     {
-                        format: presentationFormat,
+                        blend: {
+                            alpha:{
+                                dstFactor: "one",
+                                srcFactor: "one",
+                                operation: "add",
+                            },
+                            color: {
+                                dstFactor: "one",
+                                srcFactor: "src-alpha",
+                                operation: "add",
+                            },
+                        },
+                        format: "rgba8unorm",
                     },
                 ],
             },
@@ -185,15 +200,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             const commandEncoder = device.createCommandEncoder();
             const textureView = context.getCurrentTexture().createView();
 
-            const renderPassDescriptor = {
-                colorAttachments: [],
-            };
-
             const passEncoder = commandEncoder.beginRenderPass({
                 colorAttachments: [
                     {
                         view: textureView,
-                        clearValue: [0, 0, 0, 1.0],
+                        clearValue: [0.0, 0, 0, 1.0],
                         loadOp: "clear",
                         storeOp: "store",
                     },
@@ -206,7 +217,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             passEncoder.end();
 
             device.queue.submit([commandEncoder.finish()]);
-            requestAnimationFrame(frame);
+            // requestAnimationFrame(frame);
         }
 
         requestAnimationFrame(frame);
