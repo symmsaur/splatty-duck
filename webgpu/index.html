@@ -47,6 +47,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             format: presentationFormat,
         });
 
+        const splatSize = 17 * 4;
+
         const pipeline = device.createRenderPipeline({
             layout: "auto",
             vertex: {
@@ -56,7 +58,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
                 buffers: [
                     {
                         // splats
-                        arrayStride: 3 * 4, // vec3f
+                        arrayStride: splatSize,
                         stepMode: "instance",
                         attributes: [
                             {
@@ -102,7 +104,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             usage: GPUBufferUsage.VERTEX,
             mappedAtCreation: true,
         });
-        const splatData = [0.5, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
+
+        // TODO: Get from ply
+        const splatData = [0.7, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
+
+        // Assumes splatData is in bytes
+        const numSplats = splatData.length / splatSize;
 
         new Float32Array(splatBuffer.getMappedRange()).set(splatData);
         splatBuffer.unmap();
@@ -151,7 +158,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
             passEncoder.setPipeline(pipeline);
             passEncoder.setVertexBuffer(0, splatBuffer);
             passEncoder.setVertexBuffer(1, quadVertexBuffer);
-            passEncoder.draw(6, 3);
+            passEncoder.draw(6, numSplats);
             passEncoder.end();
 
             device.queue.submit([commandEncoder.finish()]);
