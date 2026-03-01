@@ -1,6 +1,6 @@
 <!doctype html>
 
-<canvas></canvas>
+<canvas width=1000 height=1000></canvas>
 
 <script type="module">
   // CORS fail or smth
@@ -19,7 +19,7 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
-    var position = in.position + 0.1 * vec3f(in.quad_pos, 0.0);
+    var position = in.position + 0.01 * vec3f(in.quad_pos, 0.0);
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
     return out;
