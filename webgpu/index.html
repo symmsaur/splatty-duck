@@ -37,7 +37,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
         return device;
     }
 
+    async function downloadPLY() {
+        const response = await fetch("67p.ply.ply");
+        const buffer = await response.arrayBuffer();
+        const buffer_uint8 = new Uint8Array(buffer);
+        const needle = new TextEncoder().encode("end_header\n");
+        let header_end = 0;
+        outer: for (let i=0; i < 1000; i++) {
+            let j = 0;
+            for (; j < needle.length; j++) {
+                if(buffer_uint8[i+j] != needle[j]) {
+                   continue outer;     
+                }
+            }
+            if (j == needle.length) {
+                header_end = i + j;
+                break outer;
+            }
+        }
+        if (!response.ok) {
+            console.log(response);
+        }
+        const buffer_f32 = new Float32Array(buffer.slice(header_end));
+        return buffer_f32
+    }
+
     async function main() {
+        const plydata_f32 = await downloadPLY();
+        console.log(plydata_f32);
         const device = await getDevice();
         const canvas = document.querySelector("canvas");
         const context = canvas.getContext("webgpu");
