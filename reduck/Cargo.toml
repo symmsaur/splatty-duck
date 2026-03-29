@@ -1,0 +1,11 @@
+[package]
+name = "reduck"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.93"
+image = {version="0.25.5", features=["png"]}
+# rerun = { git = "https://github.com/rerun-io/rerun.git" }
+rerun = "0.20.*"
+serde_json = "1.0.132"
