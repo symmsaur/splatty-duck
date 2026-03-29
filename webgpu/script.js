@@ -147,7 +147,7 @@ struct VertexOutput {
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
     var pos = transform.transform * vec4f(in.position, 1.0);
-    var position = pos.xyz + 0.5 * vec3f(in.quad_pos, 0.0) + vec3f(0,0,0.5);
+    var position = pos.xyz + 0.02 * vec3f(in.quad_pos, 0.0) + vec3f(0,0,0.5);
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
     out.color = vec4f(in.color, 0.3 * in.opacity);
@@ -320,27 +320,27 @@ async function main() {
     [splatImage.width, splatImage.height],
   );
 
-  const splatData = [
-    0.0, //property float x
-    0.0, //property float y
-    0.0, //property float z
-    0.0, //property float nx
-    0.0, //property float ny
-    0.0, //property float nz
-    1.0, //property float f_dc_0
-    0.0, //property float f_dc_1
-    1.0, //property float f_dc_2
-    1.0, //property float opacity
-    1.0, //property float scale_0
-    2.0, //property float scale_1
-    3.0, //property float scale_2
-    0.0, //property float rot_0
-    0.0, //property float rot_1
-    0.0, //property float rot_2
-    0.0, //property float rot_3
-  ];
+  // const splatData = [
+  //   0.0, //property float x
+  //   0.0, //property float y
+  //   0.0, //property float z
+  //   0.0, //property float nx
+  //   0.0, //property float ny
+  //   0.0, //property float nz
+  //   1.0, //property float f_dc_0
+  //   0.0, //property float f_dc_1
+  //   1.0, //property float f_dc_2
+  //   1.0, //property float opacity
+  //   1.0, //property float scale_0
+  //   2.0, //property float scale_1
+  //   3.0, //property float scale_2
+  //   0.0, //property float rot_0
+  //   0.0, //property float rot_1
+  //   0.0, //property float rot_2
+  //   0.0, //property float rot_3
+  // ];
 
-  // const splatData = await downloadPLY();
+  const splatData = await downloadPLY();
   const duckCenterOfMass = centerOfMass(splatData);
   console.log(duckCenterOfMass);
 
