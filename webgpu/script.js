@@ -135,6 +135,8 @@ struct VertexInput {
     @location(1) color: vec3f,
     @location(2) opacity: f32,
     @location(3) quad_pos: vec2f,
+    @location(4) scale: vec3f,
+    @location(5) quat: vec4f,
 }
 
 struct VertexOutput {
@@ -147,7 +149,53 @@ struct VertexOutput {
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
     var pos = transform.transform * vec4f(in.position, 1.0);
-    var position = pos.xyz + 0.02 * vec3f(in.quad_pos, 0.0) + vec3f(0,0,0.5);
+
+    var sx = vec3(exp(in.scale.x), 0, 0);
+    var sy = vec3(0, exp(in.scale.y), 0);
+    var sz = vec3(0, 0, exp(in.scale.z));
+
+    // // https://en.wikipedia.org/wiki/Euler%E2%80%93Rodrigues_formula
+    sx = sx + 2.0 * in.quat.x * cross(in.quat.yzw, sx) + 2 * (cross(in.quat.yzw, cross(in.quat.yzw, sx)));
+    sy = sy + 2.0 * in.quat.x * cross(in.quat.yzw, sy) + 2 * (cross(in.quat.yzw, cross(in.quat.yzw, sy)));
+    sz = sz + 2.0 * in.quat.x * cross(in.quat.yzw, sz) + 2 * (cross(in.quat.yzw, cross(in.quat.yzw, sz)));
+  
+    // Focal length, i.e. how far back the pinhole camera is compared to the image plane.
+    var l = 2.0;
+    var x = pos.x;
+    var y = pos.y;
+    var z = pos.z;
+    // Local ortographic projection
+    var L = mat3x3(
+                          vec3(l/z, 0, 0),
+                          vec3(0, l/z, 0),
+                          vec3(-l*x/(z*z), -l*y/(z*z), 1));
+
+    var M = mat3x3(
+        transform.transform[0].xyz,
+        transform.transform[1].xyz,
+        transform.transform[2].xyz
+    );
+
+    var sigma = mat3x3(sx, sy, sz);
+
+    var sigma_prime = L * M * sigma * transpose(M) * transpose(L);
+    var a = sigma_prime[0].x;
+    var b = sigma_prime[1].x;
+    var c = sigma_prime[0].y;
+    var d = sigma_prime[1].y;
+
+    var lambda1 = (a + d) / 2 + sqrt( ((a+d)/2) * ((a+d)/2) + b*c - a*d );
+    var lambda2 = (a + d) / 2 - sqrt( ((a+d)/2) * ((a+d)/2) + b*c - a*d );
+
+    var v1 = vec2(b, lambda1 - a);
+    v1 = lambda1 * v1 / sqrt(dot(v1, v1));
+    var v2 = vec2(b, lambda2 - a);
+    v2 = lambda2 * v2 / sqrt(dot(v2, v2));
+    
+    var quad_offset = mat2x2(v1, v2) * in.quad_pos;
+
+    var position = pos.xyz + vec3f(quad_offset, 0.0); // (0.5 * vec3f(in.quad_pos, 0.0));
+
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
     out.color = vec4f(in.color, 0.3 * in.opacity);
@@ -258,6 +306,18 @@ async function main() {
               offset: 9 * 4,
               format: "float32",
             },
+            {
+              // scale
+              shaderLocation: 4,
+              offset: 10 * 4,
+              format: "float32x3",
+            },
+            {
+              // quats
+              shaderLocation: 5,
+              offset: 13 * 4,
+              format: "float32x4",
+            },
           ],
         },
         {
@@ -320,29 +380,29 @@ async function main() {
     [splatImage.width, splatImage.height],
   );
 
-  // const splatData = [
-  //   0.0, //property float x
-  //   0.0, //property float y
-  //   0.0, //property float z
-  //   0.0, //property float nx
-  //   0.0, //property float ny
-  //   0.0, //property float nz
-  //   1.0, //property float f_dc_0
-  //   0.0, //property float f_dc_1
-  //   1.0, //property float f_dc_2
-  //   1.0, //property float opacity
-  //   1.0, //property float scale_0
-  //   2.0, //property float scale_1
-  //   3.0, //property float scale_2
-  //   0.0, //property float rot_0
-  //   0.0, //property float rot_1
-  //   0.0, //property float rot_2
-  //   0.0, //property float rot_3
-  // ];
+  const splatData = [
+    0.0, //property float x
+    0.0, //property float y
+    1.0, //property float z
+    0.0, //property float nx
+    0.0, //property float ny
+    0.0, //property float nz
+    1.0, //property float f_dc_0
+    0.0, //property float f_dc_1
+    1.0, //property float f_dc_2
+    1.0, //property float opacity
+    -0.69, //property float scale_0
+    -0.69, //property float scale_1
+    -0.69, //property float scale_2
+    1.0 / Math.sqrt(2.0), //property float rot_0
+    1.0 / Math.sqrt(2.0), //property float rot_1
+    0.0, //property float rot_2
+    0.0, //property float rot_3
+  ];
 
-  const splatData = await downloadPLY();
+  // const splatData = await downloadPLY();
   const duckCenterOfMass = centerOfMass(splatData);
-  console.log(duckCenterOfMass);
+  // console.log(duckCenterOfMass);
 
   // Assumes splatData is in bytes
   const numSplats = splatData.length / splatSize;

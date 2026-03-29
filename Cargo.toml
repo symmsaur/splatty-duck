@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "wgpuduck",
-    "reduck",
+    "reduck", "webgpu",
 ]
 resolver = "2"
+
