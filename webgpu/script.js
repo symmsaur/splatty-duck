@@ -129,8 +129,7 @@ struct Uniform {
     transform: mat4x4f
 }
 
-@binding(0) @group(0) var<uniform> transform : Uniform;
-
+@group(0) @binding(0) var<uniform> transform : Uniform;
 struct VertexInput {
     @location(0) position: vec3f,
     @location(1) color: vec3f,
@@ -141,28 +140,31 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) position : vec4f,
     @location(0) color : vec4f,
+    @location(1) uv: vec2f,
 }
 
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
     var pos = transform.transform * vec4f(in.position, 1.0);
-    var position = pos.xyz + 0.01 * vec3f(in.quad_pos, 0.0) + vec3f(0,0,0.5);
+    var position = pos.xyz + 0.5 * vec3f(in.quad_pos, 0.0) + vec3f(0,0,0.5);
     var out : VertexOutput;
     out.position = vec4f(position, 1.0);
     out.color = vec4f(in.color, 0.3 * in.opacity);
+    out.uv = in.quad_pos / 2.0 + 0.5;
     return out;
 }`;
 
 const splatFragmentWgsl = `
-struct VertexOutput {
-    @builtin(position) position : vec4f,
-    @location(0) color : vec4f,
-}
+@group(0) @binding(1) var linearSampler : sampler;
+@group(0) @binding(2) var gaussianTexture : texture_2d<f32>;
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    return in.color;
+fn fs_main(
+    @location(0) color: vec4f,
+    @location(1) fragUV: vec2f
+) -> @location(0) vec4f {
+    return textureSample(gaussianTexture, linearSampler, fragUV) * color;
 }
 `;
 async function getDevice() {
@@ -300,9 +302,45 @@ async function main() {
     },
   });
 
-  // TODO: Get from ply
-  // const splatData = [0.7, 0.5, 0.0, 0.0, 0.0, 0.0, -0.5, -0.5, 0.0];
-  const splatData = await downloadPLY();
+  const splatImage = await createImageBitmap(
+    await (await fetch("assets/gauss.png")).blob(),
+  );
+
+  splatTexture = device.createTexture({
+    size: [splatImage.width, splatImage.height, 1],
+    format: "rgba8unorm",
+    usage:
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  device.queue.copyExternalImageToTexture(
+    { source: splatImage },
+    { texture: splatTexture },
+    [splatImage.width, splatImage.height],
+  );
+
+  const splatData = [
+    0.0, //property float x
+    0.0, //property float y
+    0.0, //property float z
+    0.0, //property float nx
+    0.0, //property float ny
+    0.0, //property float nz
+    1.0, //property float f_dc_0
+    0.0, //property float f_dc_1
+    1.0, //property float f_dc_2
+    1.0, //property float opacity
+    1.0, //property float scale_0
+    2.0, //property float scale_1
+    3.0, //property float scale_2
+    0.0, //property float rot_0
+    0.0, //property float rot_1
+    0.0, //property float rot_2
+    0.0, //property float rot_3
+  ];
+
+  // const splatData = await downloadPLY();
   const duckCenterOfMass = centerOfMass(splatData);
   console.log(duckCenterOfMass);
 
@@ -323,20 +361,30 @@ async function main() {
     usage: GPUBufferUsage.VERTEX,
     mappedAtCreation: true,
   });
-  const vertexData = [
+  const quadVertexData = [
     -1.0, -1.0, +1.0, -1.0, -1.0, +1.0, -1.0, +1.0, +1.0, -1.0, +1.0, +1.0,
   ];
 
-  new Float32Array(quadVertexBuffer.getMappedRange()).set(vertexData);
+  new Float32Array(quadVertexBuffer.getMappedRange()).set(quadVertexData);
   quadVertexBuffer.unmap();
 
   const transformBuffer = device.createBuffer({
     size: 4 * 4 * 4,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
-  const transformBufferBindGroup = device.createBindGroup({
+
+  const sampler = device.createSampler({
+    magFilter: 'linear',
+    minFilter: 'linear',
+  });
+
+  const uniformBindGroup = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
-    entries: [{ binding: 0, resource: transformBuffer }],
+    entries: [
+      { binding: 0, resource: transformBuffer },
+      { binding: 1, resource: sampler },
+      { binding: 2, resource: splatTexture.createView() },
+    ],
   });
 
   function getTransform(time) {
@@ -375,7 +423,7 @@ async function main() {
     const transformByteLength = 4 * 4 * 4;
     device.queue.writeBuffer(transformBuffer, 0, transformf32, 0, 4 * 4);
     passEncoder.setPipeline(pipeline);
-    passEncoder.setBindGroup(0, transformBufferBindGroup);
+    passEncoder.setBindGroup(0, uniformBindGroup);
     passEncoder.setVertexBuffer(0, splatBuffer);
     passEncoder.setVertexBuffer(1, quadVertexBuffer);
     passEncoder.draw(6, numSplats);
