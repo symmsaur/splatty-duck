@@ -184,7 +184,7 @@ async function main() {
     layout: "auto",
     vertex: {
       module: device.createShaderModule({
-        code: await (await fetch('vertex.wgsl')).text(),
+        code: await (await fetch("vertex.wgsl")).text(),
       }),
       buffers: [
         {
@@ -249,7 +249,7 @@ async function main() {
     },
     fragment: {
       module: device.createShaderModule({
-        code: await (await fetch('fragment.wgsl')).text(),
+        code: await (await fetch("fragment.wgsl")).text(),
       }),
       targets: [
         {
@@ -342,29 +342,29 @@ async function main() {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  var computeShader = await fetch('compute.wgsl');
+  var computeShader = await fetch("compute.wgsl");
   var computeShader = await computeShader.text();
   const computePipeline = device.createComputePipeline({
-    layout: 'auto',
+    layout: "auto",
     compute: {
       module: device.createShaderModule({
-        code: computeShader
-      })
-    }
+        code: computeShader,
+      }),
+    },
   });
 
   const computeOutPosition = device.createBuffer({
     size: numSplats * 2 * 4,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX ,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
     mappedAtCreation: false,
   });
 
   const computeOutEigen = device.createBuffer({
     size: 2 * numSplats * 2 * 4,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX ,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
     mappedAtCreation: false,
   });
-  
+
   const computeOutDebug = device.createBuffer({
     size: numSplats * 4 * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
@@ -372,8 +372,8 @@ async function main() {
   });
 
   const computeOutDebugRead = device.createBuffer({
-    size: numSplats*4*4,
-    usage:GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+    size: numSplats * 4 * 4,
+    usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
   });
 
   const computeBindGroup = device.createBindGroup({
@@ -388,8 +388,8 @@ async function main() {
   });
 
   const sampler = device.createSampler({
-    magFilter: 'linear',
-    minFilter: 'linear',
+    magFilter: "linear",
+    minFilter: "linear",
   });
 
   const uniformBindGroup = device.createBindGroup({
@@ -407,9 +407,7 @@ async function main() {
       -duckCenterOfMass[2],
     ]);
     var m = rotationMatrix(0.5 * time, 0.2 * time, time);
-    var t = translationMatrix([
-      0, 0, 0.7
-    ]);
+    var t = translationMatrix([0, 0, 0.7]);
     var p = projectionMatrix();
     return multiply(p, multiply(t, multiply(m, to_center_of_mass)));
   }
@@ -424,7 +422,13 @@ async function main() {
         transformf32[i * 4 + j] = transform[j][i];
       }
     }
-    device.queue.writeBuffer(transformBuffer, 0, transformf32, 0, transformLength);
+    device.queue.writeBuffer(
+      transformBuffer,
+      0,
+      transformf32,
+      0,
+      transformLength,
+    );
 
     const commandEncoder = device.createCommandEncoder();
 
@@ -453,7 +457,13 @@ async function main() {
     passEncoder.draw(6, numSplats);
     passEncoder.end();
 
-    commandEncoder.copyBufferToBuffer(computeOutDebug, 0, computeOutDebugRead, 0, numSplats * 4 * 4);
+    commandEncoder.copyBufferToBuffer(
+      computeOutDebug,
+      0,
+      computeOutDebugRead,
+      0,
+      numSplats * 4 * 4,
+    );
 
     device.queue.submit([commandEncoder.finish()]);
 
