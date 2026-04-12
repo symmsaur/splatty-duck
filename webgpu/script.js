@@ -136,8 +136,7 @@ struct VertexInput {
     @location(1) color: vec3f,
     @location(2) opacity: f32,
     @location(3) quad_pos: vec2f,
-    @location(4) scale: vec3f,
-    @location(5) quat: vec4f,
+    @location(4) eigen: vec4f,
 }
 
 struct VertexOutput {
@@ -149,10 +148,12 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
-    var position = vec3f(in.position + 0.1 * in.quad_pos, 1.0);
+    // var position = vec3f(in.position + 0.1 * in.quad_pos, 1.0);
+    var eigen_mat = mat2x2f(in.eigen.xy, in.eigen.zw);
+    var position = in.position + eigen_mat * in.quad_pos;
 
     var out : VertexOutput;
-    out.position = vec4f(position, 1.0);
+    out.position = vec4f(position, 0.5, 1.0);
     out.color = vec4f(in.color, 0.3 * in.opacity);
     out.uv = in.quad_pos / 2.0 + 0.5;
     return out;
@@ -260,18 +261,6 @@ async function main() {
               offset: 9 * 4,
               format: "float32",
             },
-            {
-              // scale
-              shaderLocation: 4,
-              offset: 10 * 4,
-              format: "float32x3",
-            },
-            {
-              // quats
-              shaderLocation: 5,
-              offset: 13 * 4,
-              format: "float32x4",
-            },
           ],
         },
         {
@@ -297,6 +286,19 @@ async function main() {
               shaderLocation: 0,
               offset: 0,
               format: "float32x2",
+            },
+          ],
+        },
+        {
+          // eigen vectors
+          arrayStride: 2 * 2 * 4, // mat2f
+          stepMode: "instance",
+          attributes: [
+            {
+              // vertex positions
+              shaderLocation: 4,
+              offset: 0,
+              format: "float32x4",
             },
           ],
         },
@@ -419,6 +421,12 @@ async function main() {
     mappedAtCreation: false,
   });
 
+  const computeOutEigen = device.createBuffer({
+    size: 2 * numSplats * 2 * 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX ,
+    mappedAtCreation: false,
+  });
+
   
   const computeOutDebug = device.createBuffer({
     size: numSplats * 4 * 4,
@@ -435,7 +443,8 @@ async function main() {
       { binding: 0, resource: splatBuffer },
       { binding: 1, resource: computeOutPosition },
       { binding: 2, resource: transformBuffer },
-      { binding: 3, resource: computeOutDebug }
+      { binding: 3, resource: computeOutDebug },
+      { binding: 4, resource: computeOutEigen },
     ],
   });
 
@@ -503,6 +512,7 @@ async function main() {
     passEncoder.setVertexBuffer(0, splatBuffer);
     passEncoder.setVertexBuffer(1, quadVertexBuffer);
     passEncoder.setVertexBuffer(2, computeOutPosition);
+    passEncoder.setVertexBuffer(3, computeOutEigen);
     passEncoder.draw(6, numSplats);
     passEncoder.end();
 
