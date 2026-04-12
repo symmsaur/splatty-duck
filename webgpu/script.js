@@ -149,12 +149,12 @@ struct VertexOutput {
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
     // var position = vec3f(in.position + 0.1 * in.quad_pos, 1.0);
-    var eigen_mat = mat2x2f(in.eigen.xy, in.eigen.zw);
+    var eigen_mat = 3 * mat2x2f(in.eigen.xy, in.eigen.zw);
     var position = in.position + eigen_mat * in.quad_pos;
 
     var out : VertexOutput;
     out.position = vec4f(position, 0.5, 1.0);
-    out.color = vec4f(in.color, 0.3 * in.opacity);
+    out.color = vec4f(in.color, 1 / (1 + exp(-in.opacity)));
     out.uv = in.quad_pos / 2.0 + 0.5;
     return out;
 }`;
@@ -469,8 +469,11 @@ async function main() {
       -duckCenterOfMass[2],
     ]);
     var m = rotationMatrix(0.5 * time, 0.2 * time, time);
+    var t = translationMatrix([
+      0, 0, 0.7
+    ]);
     var p = projectionMatrix();
-    return multiply(p, multiply(m, to_center_of_mass));
+    return multiply(p, multiply(t, multiply(m, to_center_of_mass)));
   }
 
   async function frame() {
