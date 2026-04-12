@@ -1,8 +1,3 @@
-// CORS fail or smth
-// import splatWgsl from "./splat.wgsl";
-//
-// import computeShader from './compute.wgsl';
-
 function transpose(M) {
   var MR = create2dArray();
   for (var i = 0; i < 4; i++) {
@@ -125,24 +120,9 @@ function rotZMat(phi) {
   return M;
 }
 
-const splatFragmentWgsl = `
-@group(0) @binding(1) var linearSampler : sampler;
-@group(0) @binding(2) var gaussianTexture : texture_2d<f32>;
-@group(0) @binding(3) var<storage, read_write> debug : array<vec4f>;
-
-@fragment
-fn fs_main(
-    @location(0) color: vec4f,
-    @location(1) fragUV: vec2f,
-) -> @location(0) vec4f {
-    return textureSample(gaussianTexture, linearSampler, fragUV) * color;
-}
-`;
-
 async function getDevice() {
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter.requestDevice();
-  console.log(device);
   return device;
 }
 
@@ -269,7 +249,7 @@ async function main() {
     },
     fragment: {
       module: device.createShaderModule({
-        code: splatFragmentWgsl,
+        code: await (await fetch('fragment.wgsl')).text(),
       }),
       targets: [
         {
@@ -334,18 +314,14 @@ async function main() {
 
   const splatData = await downloadPLY();
   const duckCenterOfMass = centerOfMass(splatData);
-  // console.log(duckCenterOfMass);
 
-  // Assumes splatData is in bytes
   const numSplats = splatData.length / splatSize;
-
 
   const splatBuffer = device.createBuffer({
     size: splatSizeByte * numSplats,
     usage: GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE,
     mappedAtCreation: true,
   });
-
   new Float32Array(splatBuffer.getMappedRange()).set(splatData);
   splatBuffer.unmap();
 
@@ -377,7 +353,6 @@ async function main() {
     }
   });
 
-  // const computePassDescriptor = GPUComputePassDescriptor;
   const computeOutPosition = device.createBuffer({
     size: numSplats * 2 * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX ,
@@ -389,7 +364,6 @@ async function main() {
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX ,
     mappedAtCreation: false,
   });
-
   
   const computeOutDebug = device.createBuffer({
     size: numSplats * 4 * 4,
@@ -397,8 +371,10 @@ async function main() {
     mappedAtCreation: false,
   });
 
-  usage = GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST;
-  const computeOutDebugRead = device.createBuffer({size: numSplats*4*4, usage});
+  const computeOutDebugRead = device.createBuffer({
+    size: numSplats*4*4,
+    usage:GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+  });
 
   const computeBindGroup = device.createBindGroup({
     layout: computePipeline.getBindGroupLayout(0),
@@ -419,9 +395,8 @@ async function main() {
   const uniformBindGroup = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [
-      // { binding: 0, resource: transformBuffer },
-      { binding: 1, resource: sampler },
-      { binding: 2, resource: splatTexture.createView() },
+      { binding: 0, resource: sampler },
+      { binding: 1, resource: splatTexture.createView() },
     ],
   });
 
@@ -440,29 +415,6 @@ async function main() {
   }
 
   async function frame() {
-    const commandEncoder = device.createCommandEncoder();
-
-    const computePassEncoder = commandEncoder.beginComputePass({
-    });
-
-    computePassEncoder.setPipeline(computePipeline);
-    computePassEncoder.setBindGroup(0, computeBindGroup);
-    computePassEncoder.dispatchWorkgroups(Math.floor(numSplats / 256), 1, 1); // TODO workgroup_size
-    computePassEncoder.end();
-    
-    const textureView = context.getCurrentTexture().createView();
-
-    const passEncoder = commandEncoder.beginRenderPass({
-      colorAttachments: [
-        {
-          view: textureView,
-          clearValue: [0.0, 0, 0, 1.0],
-          loadOp: "clear",
-          storeOp: "store",
-        },
-      ],
-    });
-
     var time = new Date().getTime() / 1000;
     var transform = getTransform(time);
     const transformLength = 4 * 4;
@@ -473,6 +425,25 @@ async function main() {
       }
     }
     device.queue.writeBuffer(transformBuffer, 0, transformf32, 0, transformLength);
+
+    const commandEncoder = device.createCommandEncoder();
+
+    const computePassEncoder = commandEncoder.beginComputePass({});
+    computePassEncoder.setPipeline(computePipeline);
+    computePassEncoder.setBindGroup(0, computeBindGroup);
+    computePassEncoder.dispatchWorkgroups(Math.floor(numSplats / 256), 1, 1);
+    computePassEncoder.end();
+
+    const passEncoder = commandEncoder.beginRenderPass({
+      colorAttachments: [
+        {
+          view: context.getCurrentTexture().createView(),
+          clearValue: [0.0, 0, 0, 1.0],
+          loadOp: "clear",
+          storeOp: "store",
+        },
+      ],
+    });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, uniformBindGroup);
     passEncoder.setVertexBuffer(0, splatBuffer);
@@ -483,6 +454,7 @@ async function main() {
     passEncoder.end();
 
     commandEncoder.copyBufferToBuffer(computeOutDebug, 0, computeOutDebugRead, 0, numSplats * 4 * 4);
+
     device.queue.submit([commandEncoder.finish()]);
 
     await computeOutDebugRead.mapAsync(GPUMapMode.READ);
