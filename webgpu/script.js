@@ -122,7 +122,9 @@ function rotZMat(phi) {
 
 async function getDevice() {
   const adapter = await navigator.gpu.requestAdapter();
-  const device = await adapter.requestDevice();
+  const device = await adapter.requestDevice({
+    requiredFeatures: ['timestamp-query'], 
+  });
   return device;
 }
 
@@ -435,6 +437,19 @@ async function main() {
     return multiply(p, multiply(t, multiply(m, to_center_of_mass)));
   }
 
+  const timingQuerySet = device.createQuerySet({
+    type: 'timestamp',
+    count: 2,
+  });
+  const timingQueryBuffer = device.createBuffer({
+    size: timingQuerySet.count * 8,
+    usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+  });
+  const timingResultBuffer = device.createBuffer({
+    size: timingQueryBuffer.size,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+
   async function frame() {
     var time = new Date().getTime() / 1000;
     var transform = getTransform(time);
@@ -470,6 +485,11 @@ async function main() {
           storeOp: "store",
         },
       ],
+      timestampWrites: {
+        querySet: timingQuerySet,
+        beginningOfPassWriteIndex: 0,
+        endOfPassWriteIndex: 1,
+      },
     });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, uniformBindGroup);
@@ -487,9 +507,18 @@ async function main() {
       0,
       numSplats * 4 * 4,
     );
+    // timing data
+    commandEncoder.resolveQuerySet(timingQuerySet, 0, timingQuerySet.count, timingQueryBuffer, 0);
+    commandEncoder.copyBufferToBuffer(timingQueryBuffer, 0, timingResultBuffer, 0, timingResultBuffer.size);
 
     device.queue.submit([commandEncoder.finish()]);
 
+    await timingResultBuffer.mapAsync(GPUMapMode.READ);
+    const res = new BigUint64Array(timingResultBuffer.getMappedRange());
+    const duration = Number(res[1] - res[0]);
+    const timingElem = document.getElementById("timing");
+    timingElem.innerText = "render pass: " + duration / 1000000 + " ms";
+    timingResultBuffer.unmap();
     await computeOutDebugRead.mapAsync(GPUMapMode.READ);
     var debugOut = computeOutDebugRead.getMappedRange();
     var debugOutFloat = new Float32Array(debugOut, 0, numSplats * 4);
