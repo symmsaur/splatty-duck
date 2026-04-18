@@ -123,7 +123,7 @@ function rotZMat(phi) {
 async function getDevice() {
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter.requestDevice({
-    requiredFeatures: ['timestamp-query'], 
+    requiredFeatures: ["timestamp-query"],
   });
   return device;
 }
@@ -438,8 +438,8 @@ async function main() {
   }
 
   const timingQuerySet = device.createQuerySet({
-    type: 'timestamp',
-    count: 2,
+    type: "timestamp",
+    count: 4,
   });
   const timingQueryBuffer = device.createBuffer({
     size: timingQuerySet.count * 8,
@@ -450,7 +450,10 @@ async function main() {
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
 
-  async function frame() {
+  let prevFrameTime = performance.now();
+  function frame() {
+    const waitDuration = performance.now() - prevFrameTime;
+    const totalStartTime = performance.now();
     var time = new Date().getTime() / 1000;
     var transform = getTransform(time);
     const transformLength = 4 * 4;
@@ -470,7 +473,13 @@ async function main() {
 
     const commandEncoder = device.createCommandEncoder();
 
-    const computePassEncoder = commandEncoder.beginComputePass({});
+    const computePassEncoder = commandEncoder.beginComputePass({
+      timestampWrites: {
+        querySet: timingQuerySet,
+        beginningOfPassWriteIndex: 0,
+        endOfPassWriteIndex: 1,
+      },
+    });
     computePassEncoder.setPipeline(computePipeline);
     computePassEncoder.setBindGroup(0, computeBindGroup);
     computePassEncoder.dispatchWorkgroups(Math.floor(numSplats / 256), 1, 1);
@@ -487,8 +496,8 @@ async function main() {
       ],
       timestampWrites: {
         querySet: timingQuerySet,
-        beginningOfPassWriteIndex: 0,
-        endOfPassWriteIndex: 1,
+        beginningOfPassWriteIndex: 2,
+        endOfPassWriteIndex: 3,
       },
     });
     passEncoder.setPipeline(pipeline);
@@ -508,22 +517,57 @@ async function main() {
       numSplats * 4 * 4,
     );
     // timing data
-    commandEncoder.resolveQuerySet(timingQuerySet, 0, timingQuerySet.count, timingQueryBuffer, 0);
-    commandEncoder.copyBufferToBuffer(timingQueryBuffer, 0, timingResultBuffer, 0, timingResultBuffer.size);
+    commandEncoder.resolveQuerySet(
+      timingQuerySet,
+      0,
+      timingQuerySet.count,
+      timingQueryBuffer,
+      0,
+    );
+    if (timingResultBuffer.mapState == "unmapped") {
+      commandEncoder.copyBufferToBuffer(
+        timingQueryBuffer,
+        0,
+        timingResultBuffer,
+        0,
+        timingResultBuffer.size,
+      );
+    }
 
     device.queue.submit([commandEncoder.finish()]);
 
-    await timingResultBuffer.mapAsync(GPUMapMode.READ);
-    const res = new BigUint64Array(timingResultBuffer.getMappedRange());
-    const duration = Number(res[1] - res[0]);
-    const timingElem = document.getElementById("timing");
-    timingElem.innerText = "render pass: " + duration / 1000000 + " ms";
-    timingResultBuffer.unmap();
-    await computeOutDebugRead.mapAsync(GPUMapMode.READ);
-    var debugOut = computeOutDebugRead.getMappedRange();
-    var debugOutFloat = new Float32Array(debugOut, 0, numSplats * 4);
-    // console.log(debugOutFloat);
-    computeOutDebugRead.unmap();
+    if (timingResultBuffer.mapState == "unmapped") {
+      timingResultBuffer.mapAsync(GPUMapMode.READ).then((buffer) => {
+        const res = new BigUint64Array(timingResultBuffer.getMappedRange());
+        const computeDuration = Number(res[1] - res[0]) / 1000000;
+        const renderDuration = Number(res[3] - res[2]) / 1000000;
+        timingResultBuffer.unmap();
+
+        const elem = document.getElementById("gpuTiming");
+        elem.innerHTML =
+          "compute: " + computeDuration + " ms " +
+          "render: " + renderDuration + "ms ";
+      });
+    }
+
+    const debugStartTime = performance.now();
+    // await computeOutDebugRead.mapAsync(GPUMapMode.READ);
+    // var debugOut = computeOutDebugRead.getMappedRange();
+    // var debugOutFloat = new Float32Array(debugOut, 0, numSplats * 4);
+    // // console.log(debugOutFloat);
+    // computeOutDebugRead.unmap();
+    const debugDuration = performance.now() - debugStartTime;
+
+    const totalDuration = performance.now() - totalStartTime;
+    const now = performance.now();
+    const frameDuration = now - prevFrameTime;
+    prevFrameTime = now;
+    const elem = document.getElementById("cpuTiming");
+    elem.innerHTML =
+      "total: " + totalDuration + "ms " +
+      "debug: " + debugDuration + "ms " +
+      "frame: " + frameDuration + "ms " +
+      "wait: " + waitDuration + "ms ";
 
     requestAnimationFrame(frame);
   }
