@@ -15,7 +15,6 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in : VertexInput) -> VertexOutput {
-    // var position = vec3f(in.position + 0.1 * in.quad_pos, 1.0);
     var eigen_mat = 1 * mat2x2f(in.eigen.xy, in.eigen.zw);
     var position = in.position + eigen_mat * in.quad_pos;
 
