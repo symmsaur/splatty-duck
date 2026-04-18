@@ -412,6 +412,7 @@ async function main() {
   const sampler = device.createSampler({
     magFilter: "linear",
     minFilter: "linear",
+    mipMapFilter: "linear",
   });
 
   const uniformBindGroup = device.createBindGroup({
