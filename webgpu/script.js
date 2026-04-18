@@ -164,6 +164,41 @@ function centerOfMass(ply_buffer_f32) {
   return [x / n_splats, y / n_splats, z / n_splats];
 }
 
+function mipMapTexture(device, image) {
+  // assume square image
+  console.assert(image.width == image.height);
+  const numMips = Math.round(Math.log2(image.width));
+  texture = device.createTexture({
+    size: [image.width, image.height, 1],
+    mipLevelCount: numMips,
+    format: "rgba8unorm",
+    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+  });
+
+  let size = image.size;
+  device.queue.copyExternalImageToTexture(
+    { source: image },
+    { texture, mipLevel: 0 },
+    [image.width, image.height],
+  );
+  size = image.width / 2;
+  const canvas = new OffscreenCanvas(size, size);
+  const context = canvas.getContext("2d");
+  // largest texture is aleady uploaded so we can start from 1
+  for (let mipLevel = 1; mipLevel < numMips; mipLevel++) {
+    context.drawImage(image, 0, 0, size, size);
+    device.queue.writeTexture(
+      { texture, mipLevel },
+      context.getImageData(0, 0, size, size).data,
+      { bytesPerRow: size * 4 },
+      { width: size, height: size },
+    );
+    device.queue.submit([]);
+    size /= 2;
+  }
+  return texture;
+}
+
 async function main() {
   const device = await getDevice();
   const canvas = document.querySelector("canvas");
@@ -278,20 +313,7 @@ async function main() {
     await (await fetch("assets/gauss.png")).blob(),
   );
 
-  splatTexture = device.createTexture({
-    size: [splatImage.width, splatImage.height, 1],
-    format: "rgba8unorm",
-    usage:
-      GPUTextureUsage.TEXTURE_BINDING |
-      GPUTextureUsage.COPY_DST |
-      GPUTextureUsage.RENDER_ATTACHMENT,
-  });
-  device.queue.copyExternalImageToTexture(
-    { source: splatImage },
-    { texture: splatTexture },
-    [splatImage.width, splatImage.height],
-  );
-
+  splatTexture = mipMapTexture(device, splatImage);
   // const splatData = [
   //   0.5, //property float x
   //   0.0, //property float y
