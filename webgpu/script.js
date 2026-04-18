@@ -153,17 +153,19 @@ async function downloadPLY() {
   return buffer_f32;
 }
 
-function centerOfMass(ply_buffer_f32) {
+function weightedCenterOfMass(ply_buffer_f32) {
   let x = 0;
   let y = 0;
   let z = 0;
-  let n_splats = ply_buffer_f32.length / 17;
+  let sum_opacity = 0;
   for (let i = 0; i < ply_buffer_f32.length / 17; i += 17) {
-    x += ply_buffer_f32[i];
-    y += ply_buffer_f32[i + 1];
-    z += ply_buffer_f32[i + 2];
+    const opacity = 1 / (1 + Math.exp(-ply_buffer_f32[i + 9]));
+    x += ply_buffer_f32[i] * opacity;
+    y += ply_buffer_f32[i + 1] * opacity;
+    z += ply_buffer_f32[i + 2] * opacity;
+    sum_opacity += opacity;
   }
-  return [x / n_splats, y / n_splats, z / n_splats];
+  return [x / sum_opacity, y / sum_opacity, z / sum_opacity];
 }
 
 function mipMapTexture(device, image) {
@@ -337,7 +339,7 @@ async function main() {
   // ];
 
   const splatData = await downloadPLY();
-  const duckCenterOfMass = centerOfMass(splatData);
+  const duckCenterOfMass = weightedCenterOfMass(splatData);
 
   const numSplats = splatData.length / splatSize;
 
