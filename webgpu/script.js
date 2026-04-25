@@ -467,14 +467,18 @@ async function main() {
 
     var zvalues = new Array(numSplats);
     for (let i = 0; i < numSplats; i++) {
-      let vertex = splatData.slice(i * 17, i * 17 + 3);
+      let vertex = new Float32Array(4);
+      for (let j = 0; j < 3; ++j) {
+        vertex[j] = splatData[i * 17 + j];
+      }
+      vertex[3] = 1.0;
       let tvertex = multiplyVertex(transform, vertex);
       zvalues[i] = [i, tvertex[2]];
     }
-    zvalues.sort((a, b) => b[1] - a[1]);
+    zvalues.sort((a, b) => -(b[1] - a[1]));
     var zorder = new Uint32Array(numSplats);
     for (let i = 0; i < numSplats; i++) {
-      zorder[i] = zvalues[i][0];
+      zorder[zvalues[i][0]] = i;
     }
     device.queue.writeBuffer(
       indexBuffer,
