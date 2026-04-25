@@ -315,7 +315,7 @@ async function main() {
   const splatData = await downloadPLY();
   const duckCenterOfMass = weightedCenterOfMass(splatData);
 
-  const numSplats = splatData.length / splatSize;
+  let numSplats = splatData.length / splatSize;
 
   const splatBuffer = device.createBuffer({
     size: splatSizeByte * numSplats,
@@ -324,6 +324,8 @@ async function main() {
   });
   new Float32Array(splatBuffer.getMappedRange()).set(splatData);
   splatBuffer.unmap();
+
+  numSplats = Math.round(numSplats / 1);
 
   const quadVertexBuffer = device.createBuffer({
     size: 6 * 2 * 4, // 6x vec2f
@@ -495,7 +497,7 @@ async function main() {
       colorAttachments: [
         {
           view: context.getCurrentTexture().createView(),
-          clearValue: [0.0, 0, 0, 1.0],
+          clearValue: [0.5, 0.5, 0.5, 1.0],
           loadOp: "clear",
           storeOp: "store",
         },
