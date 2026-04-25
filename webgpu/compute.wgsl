@@ -3,6 +3,7 @@ struct Uniform {
 }
 
 @group(0) @binding(0) var<storage, read> ply: array<f32>;
+@group(0) @binding(5) var<storage, read> order: array<u32>;
 @group(0) @binding(1) var<storage, read_write> out_position: array<vec2f>;
 @group(0) @binding(4) var<storage, read_write> out_eigen: array<vec2f>;
 @group(0) @binding(3) var<storage, read_write> out_debug: array<vec4f>;
@@ -90,8 +91,9 @@ struct Uniform {
     // sqrt for stddev instead of variance
     v2 = sqrt(lambda2) * v2 / sqrt(dot(v2, v2));
 
-    out_position[id.x] = clip_pos.xy / clip_pos.w;
-    out_debug[id.x] = clip_pos;
-    out_eigen[2 * id.x] = v1;
-    out_eigen[2 * id.x + 1] = v2;
+    var out_idx = order[id.x];
+    out_position[out_idx] = clip_pos.xy / clip_pos.w;
+    out_debug[out_idx] = clip_pos;
+    out_eigen[2 * out_idx] = v1;
+    out_eigen[2 * out_idx + 1] = v2;
 }

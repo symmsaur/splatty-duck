@@ -402,6 +402,11 @@ async function main() {
     usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
   });
 
+  const indexBuffer = device.createBuffer({
+    size: 4 * numSplats,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+
   const computeBindGroup = device.createBindGroup({
     layout: computePipeline.getBindGroupLayout(0),
     entries: [
@@ -410,6 +415,7 @@ async function main() {
       { binding: 2, resource: transformBuffer },
       { binding: 3, resource: computeOutDebug },
       { binding: 4, resource: computeOutEigen },
+      { binding: 5, resource: indexBuffer },
     ],
   });
 
@@ -458,6 +464,26 @@ async function main() {
     const totalStartTime = performance.now();
     var time = new Date().getTime() / 1000;
     var transform = getTransform(time);
+
+    var zvalues = new Array(numSplats);
+    for (let i = 0; i < numSplats; i++) {
+      let vertex = splatData.slice(i * 17, i * 17 + 3);
+      let tvertex = multiplyVertex(transform, vertex);
+      zvalues[i] = [i, tvertex[2]];
+    }
+    zvalues.sort((a, b) => b[1] - a[1]);
+    var zorder = new Uint32Array(numSplats);
+    for (let i = 0; i < numSplats; i++) {
+      zorder[i] = zvalues[i][0];
+    }
+    device.queue.writeBuffer(
+      indexBuffer,
+      0,
+      zorder,
+      0,
+      numSplats,
+    );
+
     const transformLength = 4 * 4;
     var transformf32 = new Float32Array(transformLength);
     for (let i = 0; i < 4; ++i) {
