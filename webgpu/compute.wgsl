@@ -4,6 +4,7 @@ struct Uniform {
 
 @group(0) @binding(0) var<storage, read> ply: array<f32>;
 @group(0) @binding(5) var<storage, read> order: array<u32>;
+@group(0) @binding(6) var<storage, read_write> out_color: array<vec4f>;
 @group(0) @binding(1) var<storage, read_write> out_position: array<vec2f>;
 @group(0) @binding(4) var<storage, read_write> out_eigen: array<vec2f>;
 @group(0) @binding(3) var<storage, read_write> out_debug: array<vec4f>;
@@ -12,6 +13,9 @@ struct Uniform {
 @compute @workgroup_size(256, 1, 1) fn computeShader(
     @builtin(global_invocation_id) id: vec3<u32>
 ) {
+    if (id.x >= 293320) {
+        return;
+    }
     var ply_idx = id.x * 17;
     // FIXME: Shold this be used?
     // if(ply_idx > arrayLength(ply)) {
@@ -23,6 +27,12 @@ struct Uniform {
         ply[ply_idx],
         ply[ply_idx + 1],
         ply[ply_idx + 2]
+    );
+    var ply_color = vec4f(
+        ply[ply_idx + 6],
+        ply[ply_idx + 7],
+        ply[ply_idx + 8],
+        ply[ply_idx + 9]
     );
     var scale = vec3f(
         ply[ply_idx + 10],
@@ -96,4 +106,5 @@ struct Uniform {
     out_debug[out_idx] = clip_pos;
     out_eigen[2 * out_idx] = v1;
     out_eigen[2 * out_idx + 1] = v2;
+    out_color[out_idx] = vec4f(ply_color.xyz, .05 * 1 / (1 + exp(-ply_color.w)));
 }

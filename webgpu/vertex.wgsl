@@ -1,8 +1,8 @@
 struct VertexInput {
     @builtin(instance_index) instance_index: u32,
     @location(0) position: vec2f,
-    @location(1) color: vec3f,
-    @location(2) opacity: f32,
+    @location(1) color: vec4f,
+    // @location(2) opacity: f32,
     @location(3) quad_pos: vec2f,
     @location(4) eigen: vec4f,
 }
@@ -20,7 +20,7 @@ fn vs_main(in : VertexInput) -> VertexOutput {
 
     var out : VertexOutput;
     out.position = vec4f(position, 0.5, 1.0);
-    out.color = vec4f(in.color, .05 * 1 / (1 + exp(-in.opacity)));
+    out.color = in.color; //vec4f(in.color, .05 * 1 / (1 + exp(-in.opacity)));
     out.uv = in.quad_pos / 2.0 + 0.5;
     return out;
 }

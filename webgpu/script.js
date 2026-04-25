@@ -192,21 +192,15 @@ async function main() {
       }),
       buffers: [
         {
-          // splats
-          arrayStride: splatSizeByte,
+          // compute shader color out
+          arrayStride: 4 * 4,
           stepMode: "instance",
           attributes: [
             {
-              // color
+              // color4
               shaderLocation: 1,
-              offset: 6 * 4,
-              format: "float32x3",
-            },
-            {
-              // opacity
-              shaderLocation: 2,
-              offset: 9 * 4,
-              format: "float32",
+              offset: 0,
+              format: "float32x4",
             },
           ],
         },
@@ -259,12 +253,12 @@ async function main() {
         {
           blend: {
             alpha: {
-              dstFactor: "one",
+              dstFactor: "one-minus-src-alpha",
               srcFactor: "one",
               operation: "add",
             },
             color: {
-              dstFactor: "one",
+              dstFactor: "one-minus-src-alpha",
               srcFactor: "src-alpha",
               operation: "add",
             },
@@ -320,6 +314,7 @@ async function main() {
   const duckCenterOfMass = weightedCenterOfMass(splatData);
 
   const numSplats = splatData.length / splatSize;
+  console.log(numSplats);
 
   const splatBuffer = device.createBuffer({
     size: splatSizeByte * numSplats,
@@ -363,6 +358,12 @@ async function main() {
     mappedAtCreation: false,
   });
 
+  const computeOutColor = device.createBuffer({
+    size: numSplats * 4 * 4,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
+    mappedAtCreation: false,
+  });
+
   const computeOutEigen = device.createBuffer({
     size: 2 * numSplats * 2 * 4,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.VERTEX,
@@ -394,6 +395,7 @@ async function main() {
       { binding: 3, resource: computeOutDebug },
       { binding: 4, resource: computeOutEigen },
       { binding: 5, resource: indexBuffer },
+      { binding: 6, resource: computeOutColor },
     ],
   });
 
@@ -452,7 +454,7 @@ async function main() {
       let tvertex = multiplyVertex(transform, vertex);
       zvalues[i] = [i, tvertex[2]];
     }
-    zvalues.sort((a, b) => -(b[1] - a[1]));
+    zvalues.sort((a, b) => (b[1] - a[1]));
     var zorder = new Uint32Array(numSplats);
     for (let i = 0; i < numSplats; i++) {
       zorder[zvalues[i][0]] = i;
@@ -511,7 +513,7 @@ async function main() {
     });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, uniformBindGroup);
-    passEncoder.setVertexBuffer(0, splatBuffer);
+    passEncoder.setVertexBuffer(0, computeOutColor);
     passEncoder.setVertexBuffer(1, quadVertexBuffer);
     passEncoder.setVertexBuffer(2, computeOutPosition);
     passEncoder.setVertexBuffer(3, computeOutEigen);
