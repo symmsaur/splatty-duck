@@ -18,7 +18,7 @@ fn vs_main(in : VertexInput) -> VertexOutput {
 
     var out : VertexOutput;
     out.position = vec4f(position, 0.5, 1.0);
-    out.color = in.color; //vec4f(in.color, .05 * 1 / (1 + exp(-in.opacity)));
+    out.color = in.color;
     out.uv = in.quad_pos / 2.0 + 0.5;
     return out;
 }

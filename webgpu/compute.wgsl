@@ -106,5 +106,5 @@ struct Uniform {
     out_debug[out_idx] = clip_pos;
     out_eigen[2 * out_idx] = v1;
     out_eigen[2 * out_idx + 1] = v2;
-    out_color[out_idx] = vec4f(ply_color.xyz, .05 * 1 / (1 + exp(-ply_color.w)));
+    out_color[out_idx] = vec4f(ply_color.xyz, 1 / (1 + exp(-ply_color.w)));
 }
