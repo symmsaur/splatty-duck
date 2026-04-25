@@ -3,12 +3,12 @@ struct Uniform {
 }
 
 @group(0) @binding(0) var<storage, read> ply: array<f32>;
+@group(0) @binding(1) var<storage, read_write> out_position: array<vec2f>;
+@group(0) @binding(2) var<uniform> transform : Uniform;
+@group(0) @binding(3) var<storage, read_write> out_debug: array<vec4f>;
+@group(0) @binding(4) var<storage, read_write> out_eigen: array<vec2f>;
 @group(0) @binding(5) var<storage, read> order: array<u32>;
 @group(0) @binding(6) var<storage, read_write> out_color: array<vec4f>;
-@group(0) @binding(1) var<storage, read_write> out_position: array<vec2f>;
-@group(0) @binding(4) var<storage, read_write> out_eigen: array<vec2f>;
-@group(0) @binding(3) var<storage, read_write> out_debug: array<vec4f>;
-@group(0) @binding(2) var<uniform> transform : Uniform;
 
 @compute @workgroup_size(256, 1, 1) fn computeShader(
     @builtin(global_invocation_id) id: vec3<u32>

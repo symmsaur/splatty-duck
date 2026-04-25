@@ -187,38 +187,13 @@ async function main() {
   const pipeline = device.createRenderPipeline({
     layout: "auto",
     vertex: {
+      name: "MainVertex",
       module: device.createShaderModule({
         code: await (await fetch("vertex.wgsl")).text(),
       }),
       buffers: [
         {
-          // compute shader color out
-          arrayStride: 4 * 4,
-          stepMode: "instance",
-          attributes: [
-            {
-              // color4
-              shaderLocation: 1,
-              offset: 0,
-              format: "float32x4",
-            },
-          ],
-        },
-        {
-          // quad
-          arrayStride: 2 * 4, // vec2f
-          stepMode: "vertex",
-          attributes: [
-            {
-              // vertex positions
-              shaderLocation: 3,
-              offset: 0,
-              format: "float32x2",
-            },
-          ],
-        },
-        {
-          // computed position
+          name: "InstancePosition",
           arrayStride: 2 * 4, // vec2f
           stepMode: "instance",
           attributes: [
@@ -231,13 +206,39 @@ async function main() {
           ],
         },
         {
-          // eigen vectors
+          name: "InstanceColor",
+          arrayStride: 4 * 4,
+          stepMode: "instance",
+          attributes: [
+            {
+              // color4
+              shaderLocation: 1,
+              offset: 0,
+              format: "float32x4",
+            },
+          ],
+        },
+        {
+          name: "QuadVertices",
+          arrayStride: 2 * 4, // vec2f
+          stepMode: "vertex",
+          attributes: [
+            {
+              // vertex positions
+              shaderLocation: 2,
+              offset: 0,
+              format: "float32x2",
+            },
+          ],
+        },
+        {
+          name: "InstanceEigen",
           arrayStride: 2 * 2 * 4, // mat2f
           stepMode: "instance",
           attributes: [
             {
               // vertex positions
-              shaderLocation: 4,
+              shaderLocation: 3,
               offset: 0,
               format: "float32x4",
             },
@@ -246,6 +247,7 @@ async function main() {
       ],
     },
     fragment: {
+      name: "MainFragment",
       module: device.createShaderModule({
         code: await (await fetch("fragment.wgsl")).text(),
       }),
@@ -314,7 +316,6 @@ async function main() {
   const duckCenterOfMass = weightedCenterOfMass(splatData);
 
   const numSplats = splatData.length / splatSize;
-  console.log(numSplats);
 
   const splatBuffer = device.createBuffer({
     size: splatSizeByte * numSplats,
@@ -454,18 +455,12 @@ async function main() {
       let tvertex = multiplyVertex(transform, vertex);
       zvalues[i] = [i, tvertex[2]];
     }
-    zvalues.sort((a, b) => (b[1] - a[1]));
+    zvalues.sort((a, b) => b[1] - a[1]);
     var zorder = new Uint32Array(numSplats);
     for (let i = 0; i < numSplats; i++) {
       zorder[zvalues[i][0]] = i;
     }
-    device.queue.writeBuffer(
-      indexBuffer,
-      0,
-      zorder,
-      0,
-      numSplats,
-    );
+    device.queue.writeBuffer(indexBuffer, 0, zorder, 0, numSplats);
 
     const transformLength = 4 * 4;
     var transformf32 = new Float32Array(transformLength);
@@ -513,9 +508,9 @@ async function main() {
     });
     passEncoder.setPipeline(pipeline);
     passEncoder.setBindGroup(0, uniformBindGroup);
-    passEncoder.setVertexBuffer(0, computeOutColor);
-    passEncoder.setVertexBuffer(1, quadVertexBuffer);
-    passEncoder.setVertexBuffer(2, computeOutPosition);
+    passEncoder.setVertexBuffer(0, computeOutPosition);
+    passEncoder.setVertexBuffer(1, computeOutColor);
+    passEncoder.setVertexBuffer(2, quadVertexBuffer);
     passEncoder.setVertexBuffer(3, computeOutEigen);
     passEncoder.draw(6, numSplats);
     passEncoder.end();

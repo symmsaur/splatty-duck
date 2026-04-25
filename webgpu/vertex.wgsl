@@ -1,10 +1,8 @@
 struct VertexInput {
-    @builtin(instance_index) instance_index: u32,
     @location(0) position: vec2f,
     @location(1) color: vec4f,
-    // @location(2) opacity: f32,
-    @location(3) quad_pos: vec2f,
-    @location(4) eigen: vec4f,
+    @location(2) quad_pos: vec2f,
+    @location(3) eigen: vec4f,
 }
 
 struct VertexOutput {
