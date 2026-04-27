@@ -497,7 +497,7 @@ async function main() {
       colorAttachments: [
         {
           view: context.getCurrentTexture().createView(),
-          clearValue: [0.5, 0.5, 0.5, 1.0],
+          clearValue: [0.0, 0.0, 0.0, 1.0],
           loadOp: "clear",
           storeOp: "store",
         },
