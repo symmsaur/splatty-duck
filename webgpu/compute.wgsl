@@ -78,10 +78,8 @@ struct Uniform {
         transform.transform[2].xyz
     );
 
-    var covariance = mat3x3(sx, sy, sz);
-
-    var clip_covariance = local_ortho * camera_transform * covariance *
-        transpose(camera_transform) * transpose(local_ortho);
+    var M = local_ortho * camera_transform * mat3x3(sx, sy, sz);
+    var clip_covariance = M * transpose(M);
 
     // take 2x2 submatrix marginalizing the covariance to 2d
     var a = clip_covariance[0].x;
@@ -96,10 +94,10 @@ struct Uniform {
     // eigenvectors
     var v1 = vec2(b, lambda1 - a);
     // sqrt for stddev instead of variance
-    v1 = sqrt(lambda1) * v1 / sqrt(dot(v1, v1));
+    v1 = 3.0 * sqrt(lambda1) * v1 / sqrt(dot(v1, v1));
     var v2 = vec2(b, lambda2 - a);
     // sqrt for stddev instead of variance
-    v2 = sqrt(lambda2) * v2 / sqrt(dot(v2, v2));
+    v2 = 3.0 * sqrt(lambda2) * v2 / sqrt(dot(v2, v2));
 
     var out_idx = order[id.x];
     out_position[out_idx] = clip_pos.xy / clip_pos.w;
